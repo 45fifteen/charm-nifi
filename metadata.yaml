@@ -1,0 +1,11 @@
+name: nifi
+summary: Apache nifi supports powerful and scalable directed graphs of data routing, transformation, and system mediation logic.
+maintainer: Mark Baker <mrkbkr@gmail.com>
+description: |
+	Apache nifi supports powerful and scalable directed graphs of data routing, transformation, and system mediation logic. See apache project page for full details: https://nifi.apache.org/
+tags: 
+	- big_data
+	- analytics
+provides:
+  website:
+    interface: http
