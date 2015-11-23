@@ -1,0 +1,103 @@
+#!/bin/bash
+set -e # If any command fails, stop execution of the hook with that error
+set -x
+
+##############
+## Set Vars ##
+##############
+DATE=`date +"%m-%d-%y-%H"`;
+SOURCE="https://www.apache.org/dyn/closer.lua?path=/nifi/0.3.0/nifi-0.3.0-bin.tar.gz";
+SERVICE="nifi";
+BASE_DIR="/usr/local/";
+TMP_DIR="/tmp/${SERVICE}/";
+INSTALL_DIR="${BASE_DIR}/$SERVICE";
+JAVA_VERSION=`java -version 2>&1 | sed 's/java version "\(.*\)\.\(.*\)\..*"/\1\2/; 1q'`;
+EXTRACT_NAME=`echo "${SOURCE}" | sed 's/.*\///' | sed 's/-bin.tar.gz//g'`;
+TAR_DIR=`echo ${SOURCE} | sed 's/.*\///' | sed 's/.tar.gz//g' | sed 's/-bin//g'`;
+BACKUP_DIR="${TMP_DIR}/${DATE}";
+BACKED_UP=0;
+
+
+####################
+## Open port 8080 ##
+####################
+
+open-port 8080
+
+
+#########################################
+## Checking Java version is compatible ## 
+#########################################
+
+status-set maintenance "Checking java is installed";
+juju-log "Checking Java is installed";
+
+if [ -f /usr/bin/java ] && [ ${JAVA_VERSION} -le 17 ]; then
+   setatus-set maintenance "Installing jdk 1.7 or above";
+   if [ $JAVA_VERSION -lt 17 ]; then
+      status-set maintenance "Installing openjdk-7-jdk";
+      juju-log maintenance "Installing openjdk-7-jdk";
+      apt-get install -y openjdk-7-jdk;
+   fi
+fi
+
+#############################
+## Fetching Ni-fi from web ##
+#############################
+
+status-set maintenance "Fetching ${SERVICE}";
+juju-log "Fetching ${SERVICE}";
+if [ ! -d  ${TMP_DIR} ]; then mkdir ${TMP_DIR}; fi;
+wget "${SOURCE}" -O /tmp/${SERVICE}.tar.gz;
+
+#############################
+## Idempotency maintenance ##
+#############################
+
+if [ -d ${INSTALL_DIR}/conf ]; then
+   status-set maintenance "Backing up current ${SERVICE} configuration";
+   juju-log "Backing up current ${SERVICE} configuration";
+   if [ -d  ${BACKUP_DIR} ]; then rm -r ${BACKUP_DIR}; fi
+   mkdir ${BACKUP_DIR};
+   cp -rf ${INSTALL_DIR}/conf/* ${BACKUP_DIR};
+   rm -rf ${INSTALL_DIR};
+   BACKED_UP=1;
+fi
+
+###################################
+## Extract SOURCE to INSTALL DIR ##
+###################################
+
+status-set maintenance "Extracting ${SERVICE} to ${BASE_DIR}";
+juju-log "Extracting ${SERVICE} to ${BASE_DIR}";
+if [ ! -d  ${BASE_DIR} ]; then mkdir ${BASE_DIR}; fi
+tar -xvzf ${TMP_DIR}${SERVICE}.tar.gz -C ${BASE_DIR};
+mv ${BASE_DIR}/${EXTRACT_NAME} ${INSTALL_DIR};
+
+##########################
+## Restore config files ##
+##########################
+
+status-set maintenance "Restoring ${SERVICE} backed up config files";
+juju-log "Restoring ${SERVICE} backed up config files";
+if [ ${BACKED_UP} -eq 1 ]; then 
+   if [ -d ${BACKUP_DIR} ]; then
+      cp -rf ${BACKUP_DIR}/* ${INSTALL_DIR}/conf/;
+   fi
+fi
+
+#####################
+## Install Service ##
+#####################
+
+status-set maintenance "Granting permissions to ${INSTALL_DIR}";
+juju-log "Granting permissions to ${INSTALL_DIR}";
+if [ -d  ${INSTALL_DIR} ]; then chmod -R 777 ${INSTALL_DIR}; fi;
+if [ ! -f /etc/init.d/nifi ]; then
+   if ${INSTALL_DIR}/bin/nifi.sh install; then
+   status-set maintenance "${SERVICE} service installed";
+   juju "${SERVICE} service installed";
+   fi
+fi
+
+service nifi restart;
