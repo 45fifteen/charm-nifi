@@ -1,10 +1,10 @@
 #!/bin/bash
 set -e # If any command fails, stop execution of the hook with that error
-set -x
 
 ##############
 ## Set Vars ##
 ##############
+
 DATE=`date +"%m-%d-%y-%H"`;
 SOURCE="https://www.apache.org/dyn/closer.lua?path=/nifi/0.3.0/nifi-0.3.0-bin.tar.gz";
 SERVICE="nifi";
@@ -16,14 +16,6 @@ EXTRACT_NAME=`echo "${SOURCE}" | sed 's/.*\///' | sed 's/-bin.tar.gz//g'`;
 TAR_DIR=`echo ${SOURCE} | sed 's/.*\///' | sed 's/.tar.gz//g' | sed 's/-bin//g'`;
 BACKUP_DIR="${TMP_DIR}/${DATE}";
 BACKED_UP=0;
-
-
-####################
-## Open port 8080 ##
-####################
-
-open-port 8080
-
 
 #########################################
 ## Checking Java version is compatible ## 
@@ -99,5 +91,24 @@ if [ ! -f /etc/init.d/nifi ]; then
    juju "${SERVICE} service installed";
    fi
 fi
+
+####################
+## Open port 8080 ##
+####################
+
+status-set maintenance "Make the nifi port available, now that we know we have a site to expose"
+juju-log "Make the nifi port available, now that we know we have a site to expose"
+open-port 8080
+
+#######################
+## Set status active ##
+#######################
+
+status-set active "Nifi service now set to active state"
+juju-log "Nifi service now set to active state
+
+###################
+## Start Service ##
+###################
 
 service nifi restart;
